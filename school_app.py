@@ -240,52 +240,64 @@ def main():
 
     # Register School Button
     if st.button("Register School"):
-        st.subheader("Register a New School")
-        school_name = st.text_input("School Name")
-        password = st.text_input("Password", type='password')  # Password input
-        access_to_internet = st.selectbox("Access to Internet", ['Yes', 'No'])
-        teacher_student_ratio = st.text_input("Teacher to Student Ratio")
-        infrastructure_challenges = st.text_input("Infrastructure Challenges")
-        public_private = st.selectbox("Public or Private", ['Public', 'Private'])
+        with st.form(key='registration_form'):
+            st.subheader("Register a New School")
+            school_name = st.text_input("School Name")
+            password = st.text_input("Password", type='password')  # Password input
+            access_to_internet = st.selectbox("Access to Internet", ['Yes', 'No'])
+            teacher_student_ratio = st.text_input("Teacher to Student Ratio")
+            infrastructure_challenges = st.text_input("Infrastructure Challenges")
+            public_private = st.selectbox("Public or Private", ['Public', 'Private'])
 
-        if st.button("Register"):
-            if school_name and password and teacher_student_ratio and infrastructure_challenges:
-                register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
-                st.success("School registered successfully!")
+            if st.button("Register"):
+                # Validate inputs
+                if not school_name.strip():
+                    st.error("School Name cannot be empty.")
+                elif not password.strip():
+                    st.error("Password cannot be empty.")
+                elif not teacher_student_ratio.strip():
+                    st.error("Teacher to Student Ratio cannot be empty.")
+                elif not infrastructure_challenges.strip():
+                    st.error("Infrastructure Challenges cannot be empty.")
+                else:
+                    # If all validations pass
+                    register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
+                    st.success("School registered successfully!")
 
     # Login School Button
     if st.button("Login School"):
-        st.subheader("School Login")
-        school_name = st.text_input("School Name")
-        password = st.text_input("Password", type='password')  # Password input
-        if st.button("Login"):
-            school = login_school(school_name, password)
-            if school:
-                st.success(f"Welcome, {school_name}!")
-                # Proceed to other functionalities (add student, view students, etc.)
-                st.session_state['school_id'] = school[0]  # Assuming school_id is at index 0
-                menu = ["View Students", "Add Student", "Edit Student Info", "Enter Exam Scores", "Predict End-of-Term Average"]
-                choice = st.selectbox("Menu", menu)
+        with st.form(key='registration_form'):
+            st.subheader("School Login")
+            school_name = st.text_input("School Name")
+            password = st.text_input("Password", type='password')  # Password input
+            if st.button("Login"):
+                school = login_school(school_name, password)
+                if school:
+                    st.success(f"Welcome, {school_name}!")
+                    # Proceed to other functionalities (add student, view students, etc.)
+                    st.session_state['school_id'] = school[0]  # Assuming school_id is at index 0
+                    menu = ["View Students", "Add Student", "Edit Student Info", "Enter Exam Scores", "Predict End-of-Term Average"]
+                    choice = st.selectbox("Menu", menu)
 
-                if choice == "View Students":
-                    display_students()
+                    if choice == "View Students":
+                        display_students()
 
-                elif choice == "Add Student":
-                    add_student_form()
+                    elif choice == "Add Student":
+                        add_student_form()
 
-                elif choice == "Edit Student Info":
-                    edit_student_info()
+                    elif choice == "Edit Student Info":
+                        edit_student_info()
 
-                elif choice == "Enter Exam Scores":
-                    student_data = fetch_data("SELECT student_id, student_name FROM Students")
-                    student_options = student_data["student_id"].tolist()
-                    selected_student_id = st.selectbox("Select Student for Scores", student_options)
-                    subject_scores_entry(selected_student_id)
+                    elif choice == "Enter Exam Scores":
+                        student_data = fetch_data("SELECT student_id, student_name FROM Students")
+                        student_options = student_data["student_id"].tolist()
+                        selected_student_id = st.selectbox("Select Student for Scores", student_options)
+                        subject_scores_entry(selected_student_id)
 
-                elif choice == "Predict End-of-Term Average":
-                    predict_average_section()
-            else:
-                st.error("Invalid credentials. Please try again.")
+                    elif choice == "Predict End-of-Term Average":
+                        predict_average_section()
+                else:
+                    st.error("Invalid credentials. Please try again.")
 
 if __name__ == '__main__':
     main()
