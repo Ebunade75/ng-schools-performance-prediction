@@ -27,7 +27,7 @@ def register_school(school_name, password, access_to_internet, teacher_student_r
 def login_school(school_name, password):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM Schools WHERE school_name = ? AND password = ?', (school_name, hash_password(password)))
+    cursor.execute('''SELECT * FROM Schools WHERE school_name = ? AND password = ?''', (school_name, hash_password(password)))
     school = cursor.fetchone()
     conn.close()
     return school
@@ -60,7 +60,7 @@ def add_student(student_id, student_name, gender, age, location, household_incom
     household_income = categorize_income(household_income)
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+    cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
                    (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
     conn.commit()
     conn.close()
@@ -122,17 +122,17 @@ def predict_end_of_term_average(current_average, gender, location, household_inc
 # Display Students Table
 def display_students():
     st.subheader("Students")
-    students = fetch_data("SELECT * FROM Students")
+    students = fetch_data('''SELECT * FROM Students''')
     st.write(students)
 
 # Edit Student Info Form
 def edit_student_info():
     st.subheader("Edit Student Information")
-    student_data = fetch_data("SELECT student_id, student_name FROM Students")
+    student_data = fetch_data('''SELECT student_id, student_name FROM Students''')
     student_options = student_data["student_id"].tolist()
     selected_student_id = st.selectbox("Select Student to Edit", student_options)
 
-    student_info = fetch_data(f"SELECT * FROM Students WHERE student_id = '{selected_student_id}'").iloc[0]
+    student_info = fetch_data(f'''SELECT * FROM Students WHERE student_id = '{selected_student_id}' ''').iloc[0]
     
     with st.form(key='edit_student_form'):
         student_name = st.text_input("Student Name", value=student_info['student_name'])
@@ -206,7 +206,7 @@ def predict_average_section():
     st.subheader("Predict End-of-Term Average")
 
     # Fetch student data for selection
-    student_data = fetch_data("SELECT student_id, student_name, average, gender, location, household_income, sports, academic_clubs FROM Students")
+    student_data = fetch_data(''' SELECT student_id, student_name, average, gender, location, household_income, sports, academic_clubs FROM Students''')
     student_options = student_data["student_id"].tolist()
     
     selected_student_id = st.selectbox("Select Student", student_options)
@@ -346,7 +346,7 @@ def main():
                         edit_student_info()
 
                     elif choice == "Enter Exam Scores":
-                        student_data = fetch_data("SELECT student_id, student_name FROM Students")
+                        student_data = fetch_data(''' SELECT student_id, student_name FROM Students ''')
                         student_options = student_data["student_id"].tolist()
                         selected_student_id = st.selectbox("Select Student for Scores", student_options)
                         subject_scores_entry(selected_student_id)
