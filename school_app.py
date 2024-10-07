@@ -18,14 +18,14 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 # Register a new school
-def register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private):
+def register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private):
     teacher_student_ratio_category = categorize_teacher_student_ratio(teacher_student_ratio)
     
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('''INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private)
+        cursor.execute('''INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private)
                           VALUES (?, ?, ?, ?, ?, ?, ?)''', 
-                       (school_name, hash_password(password), access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private))
+                       (school_name, hash_password(password), access_to_internet,teacher_student_ratio_category, infrastructure, public_private))
         conn.commit()
 
 # Login a school
@@ -39,7 +39,7 @@ def login_school(school_name, password):
 def categorize_teacher_student_ratio(teacher_student_ratio):
     try:
         ratio = float(teacher_student_ratio)
-        return "Good" if ratio <= 25.0 else "Bad"
+        return "Good" if ratio <= 25 else "Bad"
     except ValueError:
         return "Invalid Ratio"
 
@@ -256,13 +256,13 @@ def main():
         st.subheader("Register New School")
         school_name = st.text_input("School Name")
         password = st.text_input("Password", type='password')
-        access_to_internet = st.selectbox("Access to Internet", ['Yes', 'No'])
-        teacher_student_ratio = st.number_input("Teacher to Student Ratio", min_value=0.0)
-        infrastructure_challenges = st.text_area("Infrastructure Challenges")
+        access_to_internet = st.selectbox("Access to Internet In School", ['Yes', 'No'])
+        teacher_student_ratio = st.number_input("Teacher to Student Ratio", min_value=1)
+        infrastructure = st.selectbox("Infrastructure", ['Good', 'Bad'])
         public_private = st.selectbox("Public or Private", ['Public', 'Private'])
         
         if st.button("Register"):
-            register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
+            register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private)
             st.success("School registered successfully!")
 
 if __name__ == '__main__':
