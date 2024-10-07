@@ -233,20 +233,20 @@ def main():
     st.title("School Management System")
     
     st.sidebar.header("School Registration/Login")
-    school_name = st.sidebar.text_input("School Name")
-    password = st.sidebar.text_input("Password", type="password")
-
     if st.sidebar.button("Register School"):
+        school_name = st.sidebar.text_input("School Name")
+        password = st.sidebar.text_input("Password", type="password")
         access_to_internet = st.sidebar.selectbox("Access to Internet", ['Yes', 'No'])
         teacher_student_ratio = st.sidebar.text_input("Teacher to Student Ratio")
-        infrastructure_challenges = st.sidebar.text_input("Infrastructure Challenges")
+        infrastructure = st.sidebar.selectbox("Infrastructure", ['Good', 'Bad'])
         public_private = st.sidebar.selectbox("Public or Private", ['Public', 'Private'])
-        
         if st.sidebar.button("Register"):
-            register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
+            register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private)
             st.sidebar.success("School registered successfully!")
 
     if st.sidebar.button("Login"):
+        school_name = st.sidebar.text_input("School Name")
+        password = st.sidebar.text_input("Password", type="password")
         school = login_school(school_name, password)
         if not school.empty:
             st.session_state['login_successful'] = True
