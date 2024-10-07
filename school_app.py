@@ -13,11 +13,14 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private):
+    teacher_student_ratio_category = categorize_teacher_student_ratio(teacher_student_ratio)
+    
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
-        VALUES (?, ?, ?, ?, ?, ?)''', (school_name, hash_password(password), access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private))
+        INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private)
+        VALUES (?, ?, ?, ?, ?, ?, ?)''', 
+        (school_name, hash_password(password), access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private))
     conn.commit()
     conn.close()
 
@@ -33,6 +36,17 @@ def login_school(school_name, password):
 def get_connection():
     conn = sqlite3.connect('school_data.db')
     return conn
+
+# Categorize teacher-to-student ratio as "Good" or "Bad"
+def categorize_teacher_student_ratio(teacher_student_ratio):
+    try:
+        ratio = float(teacher_student_ratio)
+        if ratio <= 25.0:
+            return "Good"
+        else:
+            return "Bad"
+    except ValueError:
+        return "Invalid Ratio"
 
 # Fetch data from the database
 def fetch_data(query):
@@ -249,7 +263,9 @@ def main():
             infrastructure_challenges = st.text_input("Infrastructure Challenges")
             public_private = st.selectbox("Public or Private", ['Public', 'Private'])
 
-            if st.button("Register"):
+            # Register button inside the form
+            submit_registration = st.form_submit_button("Register")
+            if submit_registration:
                 # Validate inputs
                 if not school_name.strip():
                     st.error("School Name cannot be empty.")
@@ -264,13 +280,54 @@ def main():
                     register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
                     st.success("School registered successfully!")
 
+def main():
+    st.title("School Database Management")
+
+    st.subheader("Register or Login as a School")
+
+    # Register School Button
+    if st.button("Register School"):
+        with st.form(key='registration_form'):
+            st.subheader("Register a New School")
+            school_name = st.text_input("School Name")
+            password = st.text_input("Password", type='password')  # Password input
+            access_to_internet = st.selectbox("Access to Internet", ['Yes', 'No'])
+            teacher_student_ratio = st.text_input("Teacher to Student Ratio")
+            infrastructure_challenges = st.text_input("Infrastructure Challenges")
+            public_private = st.selectbox("Public or Private", ['Public', 'Private'])
+
+            # Register button inside the form
+            submit_registration = st.form_submit_button("Register")
+            if submit_registration:
+                # Validate inputs
+                if not school_name.strip():
+                    st.error("School Name cannot be empty.")
+                elif not password.strip():
+                    st.error("Password cannot be empty.")
+                elif not teacher_student_ratio.strip():
+                    st.error("Teacher to Student Ratio cannot be empty.")
+                elif not infrastructure_challenges.strip():
+                    st.error("Infrastructure Challenges cannot be empty.")
+                else:
+                    # If all validations pass, register the school
+                    ratio_category = categorize_teacher_student_ratio(teacher_student_ratio)
+                    if ratio_category == "Invalid Ratio":
+                        st.error("Please enter a valid number for Teacher to Student Ratio.")
+                    else:
+                        register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
+                        st.success("School registered successfully!")
+                        st.info(f"Teacher to Student Ratio: {teacher_student_ratio} ({ratio_category})")
+
     # Login School Button
     if st.button("Login School"):
-        with st.form(key='registration_form'):
+        with st.form(key='login_form'):
             st.subheader("School Login")
             school_name = st.text_input("School Name")
             password = st.text_input("Password", type='password')  # Password input
-            if st.button("Login"):
+            
+            # Login button inside the form
+            submit_login = st.form_submit_button("Login")
+            if submit_login:
                 school = login_school(school_name, password)
                 if school:
                     st.success(f"Welcome, {school_name}!")
