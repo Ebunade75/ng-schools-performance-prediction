@@ -27,8 +27,7 @@ def register_school(school_name, password, access_to_internet, teacher_student_r
 def login_school(school_name, password):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''SELECT * FROM Schools WHERE school_name = ? AND password = ?''', (school_name, hash_password(password)))
-    school = cursor.fetchone()
+    school = fetch_data('''SELECT * FROM Schools WHERE school_name = ? AND password = ?''', (school_name, hash_password(password)))
     conn.close()
     return school
 
