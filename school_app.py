@@ -17,17 +17,17 @@ def register_school(school_name, password, access_to_internet, teacher_student_r
     
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private)
-        VALUES (?, ?, ?, ?, ?, ?, ?)''', 
-        (school_name, hash_password(password), access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private))
+    cursor.execute('''INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private)
+                      VALUES (?, ?, ?, ?, ?, ?, ?)''', 
+                   (school_name, hash_password(password), access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private))
     conn.commit()
     conn.close()
 
 def login_school(school_name, password):
     conn = get_connection()
     cursor = conn.cursor()
-    school = fetch_data('''SELECT * FROM Schools WHERE school_name = ? AND password = ?''', (school_name, hash_password(password)))
+    school = fetch_data('''SELECT * FROM Schools WHERE school_name = ? AND password = ?''', 
+                        (school_name, hash_password(password)))
     conn.close()
     return school
 
@@ -36,21 +36,18 @@ def get_connection():
     conn = sqlite3.connect('school_data.db')
     return conn
 
-# Categorize teacher-to-student ratio as "Good" or "Bad"
+# Categorize teacher-to-student ratio
 def categorize_teacher_student_ratio(teacher_student_ratio):
     try:
         ratio = float(teacher_student_ratio)
-        if ratio <= 25.0:
-            return "Good"
-        else:
-            return "Bad"
+        return "Good" if ratio <= 25.0 else "Bad"
     except ValueError:
         return "Invalid Ratio"
 
 # Fetch data from the database
-def fetch_data(query):
+def fetch_data(query, params=()):
     conn = get_connection()
-    data = pd.read_sql(query, conn)
+    data = pd.read_sql(query, conn, params=params)
     conn.close()
     return data
 
@@ -59,7 +56,8 @@ def add_student(student_id, student_name, gender, age, location, household_incom
     household_income = categorize_income(household_income)
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
+    cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
                    (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
     conn.commit()
     conn.close()
@@ -91,7 +89,7 @@ def update_student(student_id, student_name, gender, age, location, household_in
     conn.commit()
     conn.close()
 
-# Function to update the student's average score
+# Update the student's average score
 def update_student_average(student_id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -112,7 +110,6 @@ def predict_end_of_term_average(current_average, gender, location, household_inc
         'household_income': [household_income],
         'sports': [sports],
         'academic_clubs': [academic_clubs]
-        
     })
     transformed_data = column_transformer.transform(input_data)
     prediction = model.predict(transformed_data)
@@ -131,7 +128,7 @@ def edit_student_info():
     student_options = student_data["student_id"].tolist()
     selected_student_id = st.selectbox("Select Student to Edit", student_options)
 
-    student_info = fetch_data(f'''SELECT * FROM Students WHERE student_id = '{selected_student_id}' ''').iloc[0]
+    student_info = fetch_data(f'''SELECT * FROM Students WHERE student_id = ?''', (selected_student_id,)).iloc[0]
     
     with st.form(key='edit_student_form'):
         student_name = st.text_input("Student Name", value=student_info['student_name'])
@@ -200,12 +197,11 @@ def subject_scores_entry(student_id):
         st.success("Scores added successfully!")
 
 # Predicting End-of-Term Average
-# Predicting End-of-Term Average based on student ID
 def predict_average_section():
     st.subheader("Predict End-of-Term Average")
 
     # Fetch student data for selection
-    student_data = fetch_data(''' SELECT student_id, student_name, average, gender, location, household_income, sports, academic_clubs FROM Students''')
+    student_data = fetch_data('''SELECT student_id, student_name, average, gender, location, household_income, sports, academic_clubs FROM Students''')
     student_options = student_data["student_id"].tolist()
     
     selected_student_id = st.selectbox("Select Student", student_options)
@@ -228,132 +224,59 @@ def predict_average_section():
     st.write(f"Participates in Sports: {sports}")
     st.write(f"Member of Academic Clubs: {academic_clubs}")
 
-    # Input for current average to predict the end-of-term average
-    current_average_input = st.number_input("Current Average Score", value=current_average, min_value=0.0, max_value=100.0)
+    if st.button("Predict End-of-Term Average"):
+        predicted_average = predict_end_of_term_average(current_average, gender, location, household_income, sports, academic_clubs)
+        st.success(f"Predicted End-of-Term Average: {predicted_average:.2f}")
 
-    if st.button("Predict"):
-        if household_income is not None:
-            predicted_average = predict_end_of_term_average(
-                current_average_input,
-                gender,
-                location,
-                household_income,
-                sports,
-                academic_clubs
-            )
-            st.success(f"Current Average: {current_average_input:.2f}, Predicted End-of-Term Average: {predicted_average:.2f}")
+# Main application function
+def main():
+    st.title("School Management System")
+    
+    st.sidebar.header("School Registration/Login")
+    school_name = st.sidebar.text_input("School Name")
+    password = st.sidebar.text_input("Password", type="password")
+
+    if st.sidebar.button("Register School"):
+        access_to_internet = st.sidebar.selectbox("Access to Internet", ['Yes', 'No'])
+        teacher_student_ratio = st.sidebar.text_input("Teacher to Student Ratio")
+        infrastructure_challenges = st.sidebar.text_input("Infrastructure Challenges")
+        public_private = st.sidebar.selectbox("Public or Private", ['Public', 'Private'])
+        
+        if st.sidebar.button("Register"):
+            register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
+            st.sidebar.success("School registered successfully!")
+
+    if st.sidebar.button("Login"):
+        school = login_school(school_name, password)
+        if not school.empty:
+            st.session_state['login_successful'] = True
         else:
-            st.error("Household income must be provided.")
+            st.error("Invalid School Name or Password.")
 
+    # Display options after successful login
+    if st.session_state.get('login_successful'):
+        st.subheader("School Dashboard")
 
-def main():
-    st.title("School Database Management")
+        # Choose between adding or editing students
+        dashboard_choice = st.selectbox("Choose an Option", ["Add New Student", "Edit Student Info", "Enter Exam Scores", "View Students", "Predict End-of-Term Average"])
 
-    st.subheader("Register or Login as a School")
+        if dashboard_choice == "Add New Student":
+            add_student_form()
 
-    # Register School Button
-    if st.button("Register School"):
-        with st.form(key='registration_form'):
-            st.subheader("Register a New School")
-            school_name = st.text_input("School Name")
-            password = st.text_input("Password", type='password')  # Password input
-            access_to_internet = st.selectbox("Access to Internet", ['Yes', 'No'])
-            teacher_student_ratio = st.text_input("Teacher to Student Ratio")
-            infrastructure_challenges = st.text_input("Infrastructure Challenges")
-            public_private = st.selectbox("Public or Private", ['Public', 'Private'])
+        elif dashboard_choice == "Edit Student Info":
+            edit_student_info()
 
-            # Register button inside the form
-            submit_registration = st.form_submit_button("Register")
-            if submit_registration:
-                # Validate inputs
-                if not school_name.strip():
-                    st.error("School Name cannot be empty.")
-                elif not password.strip():
-                    st.error("Password cannot be empty.")
-                elif not teacher_student_ratio.strip():
-                    st.error("Teacher to Student Ratio cannot be empty.")
-                elif not infrastructure_challenges.strip():
-                    st.error("Infrastructure Challenges cannot be empty.")
-                else:
-                    # If all validations pass
-                    register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
-                    st.success("School registered successfully!")
+        elif dashboard_choice == "Enter Exam Scores":
+            student_data = fetch_data('''SELECT student_id, student_name FROM Students''')
+            student_options = student_data["student_id"].tolist()
+            selected_student_id = st.selectbox("Select Student to Enter Scores", student_options)
+            subject_scores_entry(selected_student_id)
 
-def main():
-    st.title("School Database Management")
+        elif dashboard_choice == "View Students":
+            display_students()
 
-    st.subheader("Register or Login as a School")
-
-    # Register School Button
-    if st.button("Register School"):
-        with st.form(key='registration_form'):
-            st.subheader("Register a New School")
-            school_name = st.text_input("School Name")
-            password = st.text_input("Password", type='password')  # Password input
-            access_to_internet = st.selectbox("Access to Internet", ['Yes', 'No'])
-            teacher_student_ratio = st.text_input("Teacher to Student Ratio")
-            infrastructure_challenges = st.text_input("Infrastructure Challenges")
-            public_private = st.selectbox("Public or Private", ['Public', 'Private'])
-
-            # Register button inside the form
-            submit_registration = st.form_submit_button("Register")
-            if submit_registration:
-                # Validate inputs
-                if not school_name.strip():
-                    st.error("School Name cannot be empty.")
-                elif not password.strip():
-                    st.error("Password cannot be empty.")
-                elif not teacher_student_ratio.strip():
-                    st.error("Teacher to Student Ratio cannot be empty.")
-                elif not infrastructure_challenges.strip():
-                    st.error("Infrastructure Challenges cannot be empty.")
-                else:
-                    # If all validations pass, register the school
-                    ratio_category = categorize_teacher_student_ratio(teacher_student_ratio)
-                    if ratio_category == "Invalid Ratio":
-                        st.error("Please enter a valid number for Teacher to Student Ratio.")
-                    else:
-                        register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
-                        st.success("School registered successfully!")
-                        st.info(f"Teacher to Student Ratio: {teacher_student_ratio} ({ratio_category})")
-
-    # Login School Button
-    if st.button("Login School"):
-        with st.form(key='login_form'):
-            st.subheader("School Login")
-            school_name = st.text_input("School Name")
-            password = st.text_input("Password", type='password')  # Password input
-            
-            # Login button inside the form
-            submit_login = st.form_submit_button("Login")
-            if submit_login:
-                school = login_school(school_name, password)
-                if school:
-                    st.success(f"Welcome, {school_name}!")
-                    # Proceed to other functionalities (add student, view students, etc.)
-                    st.session_state['school_id'] = school[0]  # Assuming school_id is at index 0
-                    menu = ["View Students", "Add Student", "Edit Student Info", "Enter Exam Scores", "Predict End-of-Term Average"]
-                    choice = st.selectbox("Menu", menu)
-
-                    if choice == "View Students":
-                        display_students()
-
-                    elif choice == "Add Student":
-                        add_student_form()
-
-                    elif choice == "Edit Student Info":
-                        edit_student_info()
-
-                    elif choice == "Enter Exam Scores":
-                        student_data = fetch_data(''' SELECT student_id, student_name FROM Students ''')
-                        student_options = student_data["student_id"].tolist()
-                        selected_student_id = st.selectbox("Select Student for Scores", student_options)
-                        subject_scores_entry(selected_student_id)
-
-                    elif choice == "Predict End-of-Term Average":
-                        predict_average_section()
-                else:
-                    st.error("Invalid credentials. Please try again.")
+        elif dashboard_choice == "Predict End-of-Term Average":
+            predict_average_section()
 
 if __name__ == '__main__':
     main()
