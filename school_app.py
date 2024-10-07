@@ -19,13 +19,13 @@ def hash_password(password):
 
 # Register a new school
 def register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private):
-    teacher_student_ratio_category = categorize_teacher_student_ratio(teacher_student_ratio)
+    teacher_student_ratio = categorize_teacher_student_ratio(teacher_student_ratio)
     
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private)
-                          VALUES (?, ?, ?, ?, ?, ?, ?)''', 
-                       (school_name, hash_password(password), access_to_internet,teacher_student_ratio_category, infrastructure, public_private))
+                          VALUES (?, ?, ?, ?, ?, ?)''', 
+                       (school_name, hash_password(password), access_to_internet, teacher_student_ratio, infrastructure, public_private))
         conn.commit()
 
 # Login a school
