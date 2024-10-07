@@ -9,32 +9,31 @@ import hashlib
 model = joblib.load('model.pkl')  # Update with your model path
 column_transformer = joblib.load('column_transformer.pkl')  # Update with your column transformer path
 
+# Database connection
+def get_connection():
+    return sqlite3.connect('school_data.db')
+
+# Hash the password for security
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+# Register a new school
 def register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private):
     teacher_student_ratio_category = categorize_teacher_student_ratio(teacher_student_ratio)
     
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private)
-                      VALUES (?, ?, ?, ?, ?, ?, ?)''', 
-                   (school_name, hash_password(password), access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private))
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private)
+                          VALUES (?, ?, ?, ?, ?, ?, ?)''', 
+                       (school_name, hash_password(password), access_to_internet, teacher_student_ratio, teacher_student_ratio_category, infrastructure_challenges, public_private))
+        conn.commit()
 
+# Login a school
 def login_school(school_name, password):
-    conn = get_connection()
-    cursor = conn.cursor()
-    school = fetch_data('''SELECT * FROM Schools WHERE school_name = ? AND password = ?''', 
-                        (school_name, hash_password(password)))
-    conn.close()
-    return school
-
-# Database connection
-def get_connection():
-    conn = sqlite3.connect('school_data.db')
-    return conn
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        return fetch_data('''SELECT * FROM Schools WHERE school_name = ? AND password = ?''', 
+                          (school_name, hash_password(password)))
 
 # Categorize teacher-to-student ratio
 def categorize_teacher_student_ratio(teacher_student_ratio):
@@ -46,21 +45,18 @@ def categorize_teacher_student_ratio(teacher_student_ratio):
 
 # Fetch data from the database
 def fetch_data(query, params=()):
-    conn = get_connection()
-    data = pd.read_sql(query, conn, params=params)
-    conn.close()
-    return data
+    with get_connection() as conn:
+        return pd.read_sql(query, conn, params=params)
 
-# Add new student
+# Add a new student
 def add_student(student_id, student_name, gender, age, location, household_income, sports, academic_clubs):
     household_income = categorize_income(household_income)
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
-                   (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
+                       (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
+        conn.commit()
 
 # Categorize household income
 def categorize_income(household_income):
@@ -73,33 +69,29 @@ def categorize_income(household_income):
 
 # Update student information
 def update_student(student_id, student_name, gender, age, location, household_income, sports, academic_clubs):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''UPDATE Students SET 
-                      student_name = ?, 
-                      gender = ?, 
-                      age = ?, 
-                      location = ?, 
-                      household_income = ?, 
-                      sports = ?,
-                      academic_clubs = ?, 
-                      updated_at = CURRENT_TIMESTAMP 
-                      WHERE student_id = ?''',
-                   (student_name, gender, age, location, household_income, sports, academic_clubs, student_id))
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''UPDATE Students SET 
+                          student_name = ?, 
+                          gender = ?, 
+                          age = ?, 
+                          location = ?, 
+                          household_income = ?, 
+                          sports = ?,
+                          academic_clubs = ?, 
+                          updated_at = CURRENT_TIMESTAMP 
+                          WHERE student_id = ?''',
+                       (student_name, gender, age, location, household_income, sports, academic_clubs, student_id))
+        conn.commit()
 
 # Update the student's average score
 def update_student_average(student_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('''SELECT AVG(score) FROM Scores WHERE student_id = ?''', (student_id,))
-    average_score = cursor.fetchone()[0]
-    
-    cursor.execute('''UPDATE Students SET average = ? WHERE student_id = ?''', (average_score, student_id))
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''SELECT AVG(score) FROM Scores WHERE student_id = ?''', (student_id,))
+        average_score = cursor.fetchone()[0]
+        cursor.execute('''UPDATE Students SET average = ? WHERE student_id = ?''', (average_score, student_id))
+        conn.commit()
 
 # Predict end-of-term average
 def predict_end_of_term_average(current_average, gender, location, household_income, sports, academic_clubs):
@@ -112,8 +104,7 @@ def predict_end_of_term_average(current_average, gender, location, household_inc
         'academic_clubs': [academic_clubs]
     })
     transformed_data = column_transformer.transform(input_data)
-    prediction = model.predict(transformed_data)
-    return prediction[0]
+    return model.predict(transformed_data)[0]
 
 # Display Students Table
 def display_students():
@@ -135,10 +126,7 @@ def edit_student_info():
         gender = st.selectbox("Gender", ['Male', 'Female'], index=0 if student_info['gender'] == 'Male' else 1)
         age = st.number_input("Age", min_value=10, max_value=100, value=int(student_info['age']))
         location = st.text_input("Location", value=student_info['location'])
-        
-        # Household income field remains as is for editing
         household_income = st.text_input("Household Income", value=student_info['household_income'])
-        
         sports = st.selectbox("Sports", ['Yes', 'No'])
         academic_clubs = st.selectbox("Academic Clubs", ['Yes', 'No'])
         submit_button = st.form_submit_button("Update Student Info")
@@ -186,15 +174,14 @@ def subject_scores_entry(student_id):
         scores[subject] = score
 
     if st.button("Submit Scores"):
-        conn = get_connection()
-        cursor = conn.cursor()
-        for subject_name, score in scores.items():
-            subject_id = subject_data[subject_data["subject_name"] == subject_name]["subject_id"].values[0]
-            cursor.execute('''INSERT INTO Scores (student_id, subject_id, score) VALUES (?, ?, ?)''', 
-                           (student_id, subject_id, score))
-        conn.commit()
-        conn.close()
-        st.success("Scores added successfully!")
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            for subject_name, score in scores.items():
+                subject_id = subject_data[subject_data["subject_name"] == subject_name]["subject_id"].values[0]
+                cursor.execute('''INSERT INTO Scores (student_id, subject_id, score) VALUES (?, ?, ?)''', 
+                               (student_id, subject_id, score))
+            conn.commit()
+            st.success("Scores added successfully!")
 
 # Predicting End-of-Term Average
 def predict_average_section():
@@ -228,55 +215,55 @@ def predict_average_section():
         predicted_average = predict_end_of_term_average(current_average, gender, location, household_income, sports, academic_clubs)
         st.success(f"Predicted End-of-Term Average: {predicted_average:.2f}")
 
-# Main application function
+# Main function to run the app
 def main():
     st.title("School Management System")
-    
-    st.sidebar.header("School Registration/Login")
-    if st.sidebar.button("Register School"):
-        school_name = st.sidebar.text_input("School Name")
-        password = st.sidebar.text_input("Password", type="password")
-        access_to_internet = st.sidebar.selectbox("Access to Internet", ['Yes', 'No'])
-        teacher_student_ratio = st.sidebar.text_input("Teacher to Student Ratio")
-        infrastructure = st.sidebar.selectbox("Infrastructure", ['Good', 'Bad'])
-        public_private = st.sidebar.selectbox("Public or Private", ['Public', 'Private'])
-        if st.sidebar.button("Register"):
-            register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private)
-            st.sidebar.success("School registered successfully!")
 
-    if st.sidebar.button("Login"):
-        school_name = st.sidebar.text_input("School Name")
-        password = st.sidebar.text_input("Password", type="password")
-        school = login_school(school_name, password)
-        if not school.empty:
-            st.session_state['login_successful'] = True
-        else:
-            st.error("Invalid School Name or Password.")
+    menu = ["Login", "Register School"]
+    choice = st.sidebar.selectbox("Select an option", menu)
 
-    # Display options after successful login
-    if st.session_state.get('login_successful'):
-        st.subheader("School Dashboard")
+    if choice == "Login":
+        st.subheader("School Login")
+        school_name = st.text_input("School Name")
+        password = st.text_input("Password", type='password')
+        
+        if st.button("Login"):
+            school = login_school(school_name, password)
+            if school:
+                st.session_state['login_successful'] = True
+                st.success("Login successful!")
 
-        # Choose between adding or editing students
-        dashboard_choice = st.selectbox("Choose an Option", ["Add New Student", "Edit Student Info", "Enter Exam Scores", "View Students", "Predict End-of-Term Average"])
+                # Update menu after successful login
+                menu.extend(["Student Management", "Predictive Analytics"])
+                choice = st.sidebar.selectbox("Select an option", menu)
 
-        if dashboard_choice == "Add New Student":
-            add_student_form()
+                if "Student Management" in menu and choice == "Student Management":
+                    st.subheader("Student Management")
+                    add_student_form()
+                    display_students()
+                    edit_student_info()
+                    student_id = st.text_input("Enter Student ID to Add Scores")
+                    if student_id:
+                        subject_scores_entry(student_id)
 
-        elif dashboard_choice == "Edit Student Info":
-            edit_student_info()
+                elif "Predictive Analytics" in menu and choice == "Predictive Analytics":
+                    predict_average_section()
 
-        elif dashboard_choice == "Enter Exam Scores":
-            student_data = fetch_data('''SELECT student_id, student_name FROM Students''')
-            student_options = student_data["student_id"].tolist()
-            selected_student_id = st.selectbox("Select Student to Enter Scores", student_options)
-            subject_scores_entry(selected_student_id)
+            else:
+                st.error("Invalid credentials")
 
-        elif dashboard_choice == "View Students":
-            display_students()
-
-        elif dashboard_choice == "Predict End-of-Term Average":
-            predict_average_section()
+    elif choice == "Register School":
+        st.subheader("Register New School")
+        school_name = st.text_input("School Name")
+        password = st.text_input("Password", type='password')
+        access_to_internet = st.selectbox("Access to Internet", ['Yes', 'No'])
+        teacher_student_ratio = st.number_input("Teacher to Student Ratio", min_value=0.0)
+        infrastructure_challenges = st.text_area("Infrastructure Challenges")
+        public_private = st.selectbox("Public or Private", ['Public', 'Private'])
+        
+        if st.button("Register"):
+            register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure_challenges, public_private)
+            st.success("School registered successfully!")
 
 if __name__ == '__main__':
     main()
