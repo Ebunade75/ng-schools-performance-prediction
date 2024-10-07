@@ -4,3 +4,5 @@ numpy
 scikit-learn
 xgboost
 sqlalchemy
+sqlite3
+plotly

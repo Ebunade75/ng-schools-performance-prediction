@@ -1,163 +1,129 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import uuid
 import sqlite3
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
-import pickle
-from sqlalchemy import create_engine, Column, String, Integer, Float, MetaData, Table
+import pandas as pd
+import plotly.express as px
 
-# Set up SQLite database using SQLAlchemy
-engine = create_engine('sqlite:///students.db')
-meta = MetaData()
+# Database connection
+def get_connection():
+    conn = sqlite3.connect('school_data.db')
+    return conn
 
-# Define the student table schema
-students_table = Table(
-    'students', meta,
-    Column('student_id', String, primary_key=True),
-    Column('student_name', String),
-    Column('gender', String),
-    Column('location', String),
-    Column('public_private', String),
-    Column('sports_participation', String),
-    Column('academic_clubs', String),
-    Column('cultural_debate_clubs', String),
-    Column('access_to_internet', String),
-    Column('infrastructure_challenges', String),
-    Column('teacher_to_student_ratio', String),
-    Column('household_income', String),
-)
+# Fetch data from the database
+def fetch_data(query):
+    conn = get_connection()
+    data = pd.read_sql(query, conn)
+    conn.close()
+    return data
 
-# Create the table
-meta.create_all(engine)
-
-# Assume the model and column transformer have already been trained and loaded
-with open('model.pkl', 'rb') as f:
-    model = pickle.load(f)
-
-with open('column_transformer.pkl', 'rb') as f:
-    ct = pickle.load(f)
-
-# Feature Inputs Function for Simulation
-def feature_input_form():
-    gender = st.selectbox('Gender', ['Male', 'Female'])
-    location = st.selectbox('Location', ['Urban', 'Rural'])
-    public_private = st.selectbox('Public/Private', ['Public', 'Private'])
-    sports_participation = st.selectbox('Sports Participation', ['Yes', 'No'])
-    academic_clubs = st.selectbox('Academic Clubs Participation', ['Yes', 'No'])
-    cultural_debate_clubs = st.selectbox('Cultural and Debate Clubs Participation', ['Yes', 'No'])
-    access_to_internet = st.selectbox('Access to Internet', ['Yes', 'No'])
-    infrastructure_challenges = st.selectbox('Infrastructure Challenges', ['Yes', 'No'])
-    teacher_to_student_ratio = st.selectbox('Teacher to Student Ratio', ['Good', 'Average', 'Poor'])
-    household_income = st.selectbox('Household Income', ['Excellent', 'Good', 'Average'])
-    
-    return {
-        'Gender': gender,
-        'Location': location,
-        'Public_vs_Private': public_private,
-        'Sports_Participation': sports_participation,
-        'Academic_Clubs': academic_clubs,
-        'Cultural_and_Debate_Clubs': cultural_debate_clubs,
-        'Access_to_Internet': access_to_internet,
-        'Infrastructure_Challenges': infrastructure_challenges,
-        'Teacher_to_Student_Ratio': teacher_to_student_ratio,
-        'Household_Income': household_income
-    }
-
-# Function to simulate grade change
-def simulate_grade_change(features, model, ct):
-    input_df = pd.DataFrame([features])
-    
-    # Map household income
-    income_mapping = {'Excellent': 1, 'Good': 2, 'Average': 3}
-    input_df['Household_Income'] = input_df['Household_Income'].map(income_mapping)
-    
-    input_data_encoded = ct.transform(input_df)
-    
-    predicted_grade = model.predict(input_data_encoded)
-    return predicted_grade[0]
-
-# Function to add a student to the SQLite database
-def add_student_to_db(student_id, student_name, features):
-    conn = engine.connect()
-    insert_query = students_table.insert().values(
-        student_id=student_id,
-        student_name=student_name,
-        gender=features['Gender'],
-        location=features['Location'],
-        public_private=features['Public_vs_Private'],
-        sports_participation=features['Sports_Participation'],
-        academic_clubs=features['Academic_Clubs'],
-        cultural_debate_clubs=features['Cultural_and_Debate_Clubs'],
-        access_to_internet=features['Access_to_Internet'],
-        infrastructure_challenges=features['Infrastructure_Challenges'],
-        teacher_to_student_ratio=features['Teacher_to_Student_Ratio'],
-        household_income=features['Household_Income']
-    )
-    conn.execute(insert_query)
+# Add new student
+def add_student(student_id, student_name, gender, age, location, household_income):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO Students (student_id, student_name, gender, age, location, household_income) VALUES (?, ?, ?, ?, ?, ?)", 
+                   (student_id, student_name, gender, age, location, household_income))
+    conn.commit()
     conn.close()
 
-# Function to retrieve a student by ID from the SQLite database
-def get_student_from_db(student_id):
-    conn = engine.connect()
-    select_query = students_table.select().where(students_table.c.student_id == student_id)
-    result = conn.execute(select_query).fetchone()
+# Update student information
+def update_student(student_id, student_name, gender, age, location, household_income):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''UPDATE Students SET 
+                      student_name = ?, 
+                      gender = ?, 
+                      age = ?, 
+                      location = ?, 
+                      household_income = ?, 
+                      updated_at = CURRENT_TIMESTAMP 
+                      WHERE student_id = ?''',
+                   (student_name, gender, age, location, household_income, student_id))
+    conn.commit()
     conn.close()
-    return result
 
-# Streamlit App
-st.title("Student Grade Management System")
+# Display Students Table
+def display_students():
+    st.subheader("Students")
+    students = fetch_data("SELECT * FROM Students")
+    st.write(students)
 
-# Tabs for functionality
-tab1, tab2 = st.tabs(["Add Student", "Search & Simulate"])
-
-# Tab 1: Add New Student
-with tab1:
-    st.header("Add New Student")
-
-    student_name = st.text_input("Student Name")
-    student_id = str(uuid.uuid4())[:8]  # Generate a unique ID for each student
-    features = feature_input_form()
-
-    if st.button("Add Student"):
-        add_student_to_db(student_id, student_name, features)
-        st.success(f"Student {student_name} added successfully! Student ID: {student_id}")
-
-# Tab 2: Search & Simulate
-with tab2:
-    st.header("Search Student by ID")
+# Edit Student Info Form
+def edit_student_info():
+    st.subheader("Edit Student Information")
     
-    search_id = st.text_input("Enter Student ID")
+    # Fetch all student IDs for dropdown selection
+    student_data = fetch_data("SELECT student_id, student_name FROM Students")
+    student_options = student_data["student_id"].tolist()
+    selected_student_id = st.selectbox("Select Student to Edit", student_options)
+
+    # Display selected student's current info
+    student_info = fetch_data(f"SELECT * FROM Students WHERE student_id = '{selected_student_id}'").iloc[0]
     
-    if st.button("Search"):
-        student_record = get_student_from_db(search_id)
-        
-        if student_record:
-            student_dict = {
-                'Gender': student_record.gender,
-                'Location': student_record.location,
-                'Public_vs_Private': student_record.public_private,
-                'Sports_Participation': student_record.sports_participation,
-                'Academic_Clubs': student_record.academic_clubs,
-                'Cultural_and_Debate_Clubs': student_record.cultural_debate_clubs,
-                'Access_to_Internet': student_record.access_to_internet,
-                'Infrastructure_Challenges': student_record.infrastructure_challenges,
-                'Teacher_to_Student_Ratio': student_record.teacher_to_student_ratio,
-                'Household_Income': student_record.household_income
-            }
+    with st.form(key='edit_student_form'):
+        student_name = st.text_input("Student Name", value=student_info['student_name'])
+        gender = st.selectbox("Gender", ['Male', 'Female'], index=0 if student_info['gender'] == 'Male' else 1)
+        age = st.number_input("Age", min_value=10, max_value=100, value=int(student_info['age']))
+        location = st.text_input("Location", value=student_info['location'])
+        household_income = st.text_input("Household Income", value=student_info['household_income'])
+        submit_button = st.form_submit_button("Update Student Info")
 
-            st.write(f"**Student Name**: {student_record.student_name}")
-            st.write("**Current Features**:")
-            st.write(student_dict)
+        if submit_button:
+            update_student(selected_student_id, student_name, gender, age, location, household_income)
+            st.success(f"Information updated for student ID: {selected_student_id}")
 
-            predicted_grade = simulate_grade_change(student_dict, model, ct)
-            st.write(f"**Current Projected Grade**: {predicted_grade:.2f}%")
+# Interactive Plotting
+def interactive_plotting():
+    st.subheader("Interactive Student Performance Plots")
+    
+    # Select student for plotting
+    student_data = fetch_data("SELECT student_id, student_name FROM Students")
+    student_options = student_data["student_id"].tolist()
+    selected_student_id = st.selectbox("Select Student for Plotting", student_options)
 
-            st.subheader("Simulate Grade Change")
-            new_features = feature_input_form()
-            new_predicted_grade = simulate_grade_change(new_features, model, ct)
-            st.write(f"**New Projected Grade**: {new_predicted_grade:.2f}%")
-        else:
-            st.error("Student not found!")
+    # Fetch scores for the selected student
+    scores = fetch_data(f"SELECT Subjects.subject_name, Scores.score FROM Scores INNER JOIN Subjects ON Scores.subject_id = Subjects.subject_id WHERE Scores.student_id = '{selected_student_id}'")
+
+    if not scores.empty:
+        # Plot the scores
+        st.write(f"Performance Data for Student ID: {selected_student_id}")
+        fig = px.bar(scores, x="subject_name", y="score", title="Subject-wise Performance", labels={"score": "Exam Score", "subject_name": "Subject"})
+        st.plotly_chart(fig)
+    else:
+        st.warning("No scores found for this student")
+
+# Add a new student form
+def add_student_form():
+    st.subheader("Add a New Student")
+    with st.form(key='student_form'):
+        student_id = st.text_input("Student ID")
+        student_name = st.text_input("Student Name")
+        gender = st.selectbox("Gender", ['Male', 'Female'])
+        age = st.number_input("Age", min_value=10, max_value=100)
+        location = st.text_input("Location")
+        household_income = st.text_input("Household Income")
+        submit_button = st.form_submit_button("Add Student")
+
+        if submit_button:
+            add_student(student_id, student_name, gender, age, location, household_income)
+            st.success("Student added successfully")
+
+# Main App
+def main():
+    st.title("School Database Management")
+
+    menu = ["View Students", "Add Student", "Edit Student Info", "Interactive Student Plots"]
+    choice = st.sidebar.selectbox("Menu", menu)
+
+    if choice == "View Students":
+        display_students()
+
+    elif choice == "Add Student":
+        add_student_form()
+
+    elif choice == "Edit Student Info":
+        edit_student_info()
+
+    elif choice == "Interactive Student Plots":
+        interactive_plotting()
+
+if __name__ == '__main__':
+    main()
