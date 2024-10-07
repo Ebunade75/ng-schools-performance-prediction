@@ -229,7 +229,7 @@ def main():
         
         if st.button("Login"):
             school = login_school(school_name, password)
-            if school:
+            if not school.empty:  
                 st.session_state['login_successful'] = True
                 st.success("Login successful!")
 
