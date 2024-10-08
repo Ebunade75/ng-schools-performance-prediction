@@ -219,51 +219,64 @@ def predict_average_section():
 def main():
     st.title("School Management System")
 
-    menu = ["Login", "Register School"]
+    # Check if a session state exists for login
+    if 'login_successful' not in st.session_state:
+        st.session_state['login_successful'] = False
+
+    # Sidebar menu options based on login status
+    if not st.session_state['login_successful']:
+        menu = ["Login", "Register School"]
+    else:
+        menu = ["Student Management", "Predictive Analytics", "Logout"]
+
     choice = st.sidebar.selectbox("Select an option", menu)
 
-    if choice == "Login":
-        st.subheader("School Login")
-        school_name = st.text_input("School Name")
-        password = st.text_input("Password", type='password')
-        
-        if st.button("Login"):
-            school = login_school(school_name, password)
-            if not school.empty:  
-                st.session_state['login_successful'] = True
-                st.success("Login successful!")
+    if not st.session_state['login_successful']:  # Show login/register when not logged in
+        if choice == "Login":
+            st.subheader("School Login")
+            school_name = st.text_input("School Name")
+            password = st.text_input("Password", type='password')
 
-                # Update menu after successful login
-                menu.extend(["Student Management", "Predictive Analytics"])
-                choice = st.sidebar.selectbox("Select an option", menu)
+            if st.button("Login"):
+                school = login_school(school_name, password)
+                if not school.empty:
+                    st.session_state['login_successful'] = True
+                    st.session_state['school_name'] = school_name  # Track the logged-in school
+                    st.success(f"Login successful! Welcome, {school_name}.")
 
-                if "Student Management" in menu and choice == "Student Management":
-                    st.subheader("Student Management")
-                    add_student_form()
-                    display_students()
-                    edit_student_info()
-                    student_id = st.text_input("Enter Student ID to Add Scores")
-                    if student_id:
-                        subject_scores_entry(student_id)
+                else:
+                    st.error("Invalid school name or password")
 
-                elif "Predictive Analytics" in menu and choice == "Predictive Analytics":
-                    predict_average_section()
+        elif choice == "Register School":
+            st.subheader("Register New School")
+            school_name = st.text_input("School Name")
+            password = st.text_input("Password", type='password')
+            access_to_internet = st.selectbox("Access to Internet In School", ['Yes', 'No'])
+            teacher_student_ratio = st.number_input("Teacher to Student Ratio", min_value=1)
+            infrastructure = st.selectbox("Infrastructure", ['Good', 'Bad'])
+            public_private = st.selectbox("Public or Private", ['Public', 'Private'])
 
-            else:
-                st.error("Invalid credentials")
+            if st.button("Register"):
+                register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private)
+                st.success(f"School '{school_name}' registered successfully!")
 
-    elif choice == "Register School":
-        st.subheader("Register New School")
-        school_name = st.text_input("School Name")
-        password = st.text_input("Password", type='password')
-        access_to_internet = st.selectbox("Access to Internet In School", ['Yes', 'No'])
-        teacher_student_ratio = st.number_input("Teacher to Student Ratio", min_value=1)
-        infrastructure = st.selectbox("Infrastructure", ['Good', 'Bad'])
-        public_private = st.selectbox("Public or Private", ['Public', 'Private'])
-        
-        if st.button("Register"):
-            register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private)
-            st.success("School registered successfully!")
+    else:  # Logged-in view
+        if choice == "Student Management":
+            st.subheader("Student Management")
+            add_student_form()  # Adding a new student
+            display_students()  # Display all students
+            edit_student_info()  # Editing student info
+            student_id = st.text_input("Enter Student ID to Add Scores")
+            if student_id:
+                subject_scores_entry(student_id)
+
+        elif choice == "Predictive Analytics":
+            predict_average_section()
+
+        elif choice == "Logout":
+            st.session_state['login_successful'] = False
+            st.session_state['school_name'] = None
+            st.success("Logged out successfully!")
 
 if __name__ == '__main__':
     main()
