@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import joblib
+import uuid
 
 # Load the pre-trained model and column transformer
 column_transformer = joblib.load('column_transformer.pkl')
@@ -16,10 +17,8 @@ def get_db_connection():
 def register_school(school_name, password, access_to_internet, teacher_student_ratio, public_private):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, public_private)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (school_name, password, access_to_internet, teacher_student_ratio, public_private))
+    cursor.execute('''INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, public_private)
+                      VALUES (?, ?, ?, ?, ?)''', (school_name, password, access_to_internet, teacher_student_ratio, public_private))
     conn.commit()
     conn.close()
 
@@ -28,14 +27,18 @@ def school_exists(school_name):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM Schools WHERE school_name = ?', (school_name,))
-    return cursor.fetchone() is not None
+    exists = cursor.fetchone() is not None
+    conn.close()
+    return exists
 
 # Function to validate login
 def validate_login(school_name, password):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM Schools WHERE school_name = ? AND password = ?', (school_name, password))
-    return cursor.fetchone() is not None
+    is_valid = cursor.fetchone() is not None
+    conn.close()
+    return is_valid
 
 # Function to fetch all students for prediction
 def fetch_students():
@@ -46,16 +49,17 @@ def fetch_students():
     conn.close()
     return students
 
-# Add a new student
+# Function to add a new student
 def add_student(student_name, gender, age, location, household_income, sports, academic_clubs):
     household_income = categorize_income(household_income)
     student_id = str(uuid.uuid4())  # Generate a unique student ID
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
-                       (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
-        conn.commit()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
+                   (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
+    conn.commit()
+    conn.close()
     return student_id 
 
 def add_student_form():
@@ -83,14 +87,6 @@ def add_student_form():
             student_id = add_student(student_name, gender, age, location, household_income, sports, academic_clubs)
             st.success(f"Student added successfully! ID: {student_id}")
 
-# Categorize teacher-to-student ratio
-def categorize_teacher_student_ratio(teacher_student_ratio):
-    try:
-        ratio = float(teacher_student_ratio)
-        return "Good" if ratio <= 25 else "Bad"
-    except ValueError:
-        return "Invalid Ratio"
-    
 # Categorize household income
 def categorize_income(household_income):
     if household_income < 70000:
@@ -145,8 +141,7 @@ def main():
                 st.success("Login successful!")
                 st.session_state['logged_in'] = True
                 st.session_state['school_name'] = school_name
-                if st.session_state.logged_in:
-                    dashboard()
+                dashboard()
             else:
                 st.error("Invalid school name or password.")
 
@@ -160,26 +155,7 @@ def dashboard():
         st.write("Use the sidebar to navigate through the app.")
 
     elif choice == "Register Student":
-        st.title("Register a New Student")
-
-        # Input fields for student registration
-        with st.form(key="student_form"):
-            student_id = st.text_input("Student ID")
-            name = st.text_input("Name")
-            age = st.number_input("Age", min_value=1, max_value=100)
-            gender = st.selectbox("Gender", ["Male", "Female"])
-            submit = st.form_submit_button("Register Student")
-
-        if submit:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs, average)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (student_id, name, gender, age, '', '', '', '', current_average))
-            conn.commit()
-            conn.close()
-            st.success(f"Student {name} registered successfully.")
+        add_student_form()
 
     elif choice == "Upload Exam Scores":
         st.title("Upload Exam Scores")
@@ -201,7 +177,7 @@ def dashboard():
             filtered_students = [s for s in students_data if search_name.lower() in s[1].lower()]  # Assuming name is at index 1
             if filtered_students:
                 st.write(f"Found {len(filtered_students)} student(s):")
-                st.write(pd.DataFrame(filtered_students, columns=["ID", "Name", "Gender", "Age", "Average"]))
+                st.write(pd.DataFrame(filtered_students, columns=["ID", "Name", "Gender", "Age", "Household Income", "Sports", "Academic Clubs"]))
             else:
                 st.error("No student found with that name.")
 
@@ -234,9 +210,7 @@ def dashboard():
                 if matching_students:
                     conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute('''
-                        UPDATE Students SET average = ? WHERE student_id = ?
-                    ''', (prediction, matching_students[0][0]))  # Update the first match
+                    cursor.execute('''UPDATE Students SET average = ? WHERE student_id = ?''', (prediction, matching_students[0][0]))  # Update the first match
                     conn.commit()
                     conn.close()
                     st.success("Prediction saved successfully!")
