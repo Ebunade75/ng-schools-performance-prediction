@@ -145,7 +145,8 @@ def main():
                 st.success("Login successful!")
                 st.session_state['logged_in'] = True
                 st.session_state['school_name'] = school_name
-                dashboard()
+                if st.session_state.logged_in:
+                    dashboard()
             else:
                 st.error("Invalid school name or password.")
 
