@@ -188,9 +188,14 @@ def predict_average_section():
     st.subheader("Predict End-of-Term Average")
 
     # Fetch student data for selection
-    student_data = fetch_data('''SELECT student_id, student_name, average, gender, location, household_income, sports, academic_clubs FROM Students''')
+    student_data = fetch_data('''
+        SELECT student_id, student_name, average, gender, location, household_income, sports, academic_clubs, 
+               infrastructure, public_private, access_to_internet, teacher_student_ratio 
+        FROM Students 
+        INNER JOIN Schools ON Students.school_id = Schools.school_id
+    ''')
+
     student_options = student_data["student_id"].tolist()
-    
     selected_student_id = st.selectbox("Select Student", student_options)
 
     # Get selected student's details
@@ -202,6 +207,10 @@ def predict_average_section():
     household_income = selected_student_info["household_income"]
     sports = selected_student_info["sports"]
     academic_clubs = selected_student_info["academic_clubs"]
+    infrastructure = selected_student_info["infrastructure"]
+    public_private = selected_student_info["public_private"]
+    access_to_internet = selected_student_info["access_to_internet"]
+    teacher_student_ratio = selected_student_info["teacher_student_ratio"]
 
     # Display the current average and additional features
     st.write(f"Current Average Score: {current_average:.2f}")
@@ -210,10 +219,18 @@ def predict_average_section():
     st.write(f"Household Income: {household_income}")
     st.write(f"Participates in Sports: {sports}")
     st.write(f"Member of Academic Clubs: {academic_clubs}")
+    st.write(f"Infrastructure: {infrastructure}")
+    st.write(f"Public vs Private: {public_private}")
+    st.write(f"Access to Internet: {access_to_internet}")
+    st.write(f"Teacher to Student Ratio: {teacher_student_ratio}")
 
+    # Trigger prediction
     if st.button("Predict End-of-Term Average"):
-        predicted_average = predict_end_of_term_average(current_average, gender, location, household_income, sports, academic_clubs)
+        predicted_average = predict_end_of_term_average(
+            current_average, gender, location, household_income, sports, academic_clubs
+        )
         st.success(f"Predicted End-of-Term Average: {predicted_average:.2f}")
+
 
 # Main function to run the app
 def main():
@@ -243,6 +260,22 @@ def main():
                     st.session_state['login_successful'] = True
                     st.session_state['school_name'] = school_name  # Track the logged-in school
                     st.success(f"Login successful! Welcome, {school_name}.")
+                    if choice == "Student Management":
+                        st.subheader("Student Management")
+                        add_student_form()  # Adding a new student
+                        display_students()  # Display all students
+                        edit_student_info()  # Editing student info
+                        student_id = st.text_input("Enter Student ID to Add Scores")
+                        if student_id:
+                            subject_scores_entry(student_id)
+
+                    elif choice == "Predictive Analytics":
+                        predict_average_section()
+
+                    elif choice == "Logout":
+                        st.session_state['login_successful'] = False
+                        st.session_state['school_name'] = None
+                        st.success("Logged out successfully!")
 
                 else:
                     st.error("Invalid school name or password")
@@ -260,23 +293,6 @@ def main():
                 register_school(school_name, password, access_to_internet, teacher_student_ratio, infrastructure, public_private)
                 st.success(f"School '{school_name}' registered successfully!")
 
-    else:  # Logged-in view
-        if choice == "Student Management":
-            st.subheader("Student Management")
-            add_student_form()  # Adding a new student
-            display_students()  # Display all students
-            edit_student_info()  # Editing student info
-            student_id = st.text_input("Enter Student ID to Add Scores")
-            if student_id:
-                subject_scores_entry(student_id)
-
-        elif choice == "Predictive Analytics":
-            predict_average_section()
-
-        elif choice == "Logout":
-            st.session_state['login_successful'] = False
-            st.session_state['school_name'] = None
-            st.success("Logged out successfully!")
 
 if __name__ == '__main__':
     main()
