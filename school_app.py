@@ -46,6 +46,60 @@ def fetch_students():
     conn.close()
     return students
 
+# Add a new student
+def add_student(student_name, gender, age, location, household_income, sports, academic_clubs):
+    household_income = categorize_income(household_income)
+    student_id = str(uuid.uuid4())  # Generate a unique student ID
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
+                       (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
+        conn.commit()
+    return student_id 
+
+def add_student_form():
+    st.subheader("Add a New Student")
+    with st.form(key='student_form'):
+        student_name = st.text_input("Student Name")
+        gender = st.selectbox("Gender", ['Male', 'Female'])
+        age = st.number_input("Age", min_value=10, max_value=100)
+        location = st.selectbox("Location", ['Rural', 'Urban'])
+        
+        # Input validation for household income
+        household_income = st.text_input("Household Income")
+        if household_income:
+            try:
+                household_income = float(household_income)
+            except ValueError:
+                st.error("Please enter a valid number for household income.")
+                household_income = None
+        
+        sports = st.selectbox("Sports", ['Yes', 'No'])
+        academic_clubs = st.selectbox("Academic Clubs", ['Yes', 'No'])
+        submit_button = st.form_submit_button("Add Student")
+
+        if submit_button and household_income is not None:
+            student_id = add_student(student_name, gender, age, location, household_income, sports, academic_clubs)
+            st.success(f"Student added successfully! ID: {student_id}")
+
+# Categorize teacher-to-student ratio
+def categorize_teacher_student_ratio(teacher_student_ratio):
+    try:
+        ratio = float(teacher_student_ratio)
+        return "Good" if ratio <= 25 else "Bad"
+    except ValueError:
+        return "Invalid Ratio"
+    
+# Categorize household income
+def categorize_income(household_income):
+    if household_income < 70000:
+        return "Low"
+    elif 70000 <= household_income < 200000:
+        return "Average"
+    else:
+        return "High"
+
 # Function to predict end-of-term average using the model
 def predict_end_of_term_average(features):
     transformed_features = column_transformer.transform(features)  # Transform the features using ColumnTransformer
@@ -112,8 +166,7 @@ def dashboard():
             student_id = st.text_input("Student ID")
             name = st.text_input("Name")
             age = st.number_input("Age", min_value=1, max_value=100)
-            gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-            current_average = st.number_input("Current Average", min_value=0.0, max_value=100.0)
+            gender = st.selectbox("Gender", ["Male", "Female"])
             submit = st.form_submit_button("Register Student")
 
         if submit:
