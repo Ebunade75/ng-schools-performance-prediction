@@ -15,7 +15,10 @@ def predict_student_average(student_data):
         'Student_ID': None,
         'Public_vs_Private': 'Private',
         'Access_to_Internet': 'Yes',
+        'Teacher_to_Student_Ratio': 'Good',
+        'Gender': student_data.get('gender'),
         'Location': student_data.get('location', 'Urban'),
+        'Academic_Clubs': student_data.get('academic_clubs', 'No'),
         'Sports_Participation': student_data.get('sports', 'No'), 
         'Household_Income': student_data.get('household_income', 0)  
     }
