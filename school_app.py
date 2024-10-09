@@ -13,34 +13,36 @@ def get_db_connection():
     conn = sqlite3.connect('school_data.db')
     return conn
 
-# Function to register a school
-def register_school(school_name, password, access_to_internet, teacher_student_ratio, public_private):
+# Create the database and tables if they don't exist
+def create_database():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''INSERT INTO Schools (school_name, password, access_to_internet, teacher_student_ratio, public_private)
-                      VALUES (?, ?, ?, ?, ?)''', (school_name, password, access_to_internet, teacher_student_ratio, public_private))
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Students (
+            student_id TEXT PRIMARY KEY,
+            student_name TEXT NOT NULL,
+            gender TEXT NOT NULL,
+            age INTEGER NOT NULL,
+            location TEXT NOT NULL,
+            household_income TEXT NOT NULL,
+            sports TEXT NOT NULL,
+            academic_clubs TEXT NOT NULL,
+            average REAL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ExamScores (
+            exam_id TEXT PRIMARY KEY,
+            student_id TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            score REAL NOT NULL,
+            FOREIGN KEY(student_id) REFERENCES Students(student_id)
+        )
+    ''')
     conn.commit()
     conn.close()
 
-# Function to check if a school exists
-def school_exists(school_name):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM Schools WHERE school_name = ?', (school_name,))
-    exists = cursor.fetchone() is not None
-    conn.close()
-    return exists
-
-# Function to validate login
-def validate_login(school_name, password):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM Schools WHERE school_name = ? AND password = ?', (school_name, password))
-    is_valid = cursor.fetchone() is not None
-    conn.close()
-    return is_valid
-
-# Function to fetch all students for prediction
+# Function to fetch all students
 def fetch_students():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -49,9 +51,42 @@ def fetch_students():
     conn.close()
     return students
 
+# Function to update student details
+def update_student(student_id, student_name, gender, age, location, household_income, sports, academic_clubs):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE Students SET student_name = ?, gender = ?, age = ?, location = ?, household_income = ?, sports = ?, academic_clubs = ?
+        WHERE student_id = ?
+    ''', (student_name, gender, age, location, household_income, sports, academic_clubs, student_id))
+    conn.commit()
+    conn.close()
+
+# Function to add exam scores for a student
+def add_exam_score(student_id, subject, score):
+    exam_id = str(uuid.uuid4())  # Generate a unique exam ID
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO ExamScores (exam_id, student_id, subject, score)
+        VALUES (?, ?, ?, ?)
+    ''', (exam_id, student_id, subject, score))
+    conn.commit()
+    conn.close()
+
+# Function to calculate a student's overall average
+def calculate_student_average(student_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT AVG(score) FROM ExamScores WHERE student_id = ?', (student_id,))
+    avg = cursor.fetchone()[0]
+    cursor.execute('UPDATE Students SET average = ? WHERE student_id = ?', (avg, student_id))
+    conn.commit()
+    conn.close()
+    return avg
+
 # Function to add a new student
 def add_student(student_name, gender, age, location, household_income, sports, academic_clubs):
-    household_income = categorize_income(household_income)
     student_id = str(uuid.uuid4())  # Generate a unique student ID
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -60,162 +95,87 @@ def add_student(student_name, gender, age, location, household_income, sports, a
                    (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
     conn.commit()
     conn.close()
-    return student_id 
+    return student_id
 
-def add_student_form():
-    st.subheader("Add a New Student")
-    with st.form(key='student_form'):
+# Function to display all students in a table with search capability
+def display_students(search_query=''):
+    students = fetch_students()
+    if search_query:
+        students = [s for s in students if search_query.lower() in s[1].lower()]
+    df = pd.DataFrame(students, columns=["Student ID", "Name", "Gender", "Age", "Location", "Household Income", "Sports", "Academic Clubs", "Average"])
+    st.dataframe(df)
+
+# Dashboard style
+def dashboard():
+    st.sidebar.title("Student Management Dashboard")
+    menu = ["Home", "Register Student", "Update Student", "Add Exam Scores", "View Students"]
+    choice = st.sidebar.selectbox("Select an action", menu)
+
+    if choice == "Home":
+        st.title("Welcome to the Student Management Dashboard")
+        st.write("Use the sidebar to manage students, add exam scores, or update student information.")
+
+    elif choice == "Register Student":
+        st.subheader("Register a New Student")
         student_name = st.text_input("Student Name")
         gender = st.selectbox("Gender", ['Male', 'Female'])
         age = st.number_input("Age", min_value=10, max_value=100)
         location = st.selectbox("Location", ['Rural', 'Urban'])
-        
-        # Input validation for household income
         household_income = st.text_input("Household Income")
-        if household_income:
-            try:
-                household_income = float(household_income)
-            except ValueError:
-                st.error("Please enter a valid number for household income.")
-                household_income = None
-        
         sports = st.selectbox("Sports", ['Yes', 'No'])
         academic_clubs = st.selectbox("Academic Clubs", ['Yes', 'No'])
-        submit_button = st.form_submit_button("Add Student")
+        submit_button = st.button("Add Student")
 
-        if submit_button and household_income is not None:
+        if submit_button:
             student_id = add_student(student_name, gender, age, location, household_income, sports, academic_clubs)
             st.success(f"Student added successfully! ID: {student_id}")
 
-# Categorize household income
-def categorize_income(household_income):
-    if household_income < 70000:
-        return "Low"
-    elif 70000 <= household_income < 200000:
-        return "Average"
-    else:
-        return "High"
+    elif choice == "Update Student":
+        st.subheader("Update Student Information")
+        students = fetch_students()
+        student_ids = [s[0] for s in students]
+        selected_student = st.selectbox("Select a student to update", student_ids)
 
-# Function to predict end-of-term average using the model
-def predict_end_of_term_average(features):
-    transformed_features = column_transformer.transform(features)  # Transform the features using ColumnTransformer
-    predicted_average = model.predict(transformed_features)  # Predict using the trained model
-    return predicted_average[0]  # Return the first (and only) prediction
+        if selected_student:
+            student_data = next(s for s in students if s[0] == selected_student)
+            student_name = st.text_input("Student Name", value=student_data[1])
+            gender = st.selectbox("Gender", ['Male', 'Female'], index=0 if student_data[2] == 'Male' else 1)
+            age = st.number_input("Age", min_value=10, max_value=100, value=student_data[3])
+            location = st.selectbox("Location", ['Rural', 'Urban'], index=0 if student_data[4] == 'Rural' else 1)
+            household_income = st.text_input("Household Income", value=student_data[5])
+            sports = st.selectbox("Sports", ['Yes', 'No'], index=0 if student_data[6] == 'Yes' else 1)
+            academic_clubs = st.selectbox("Academic Clubs", ['Yes', 'No'], index=0 if student_data[7] == 'Yes' else 1)
+            update_button = st.button("Update Student")
 
-# Main app
+            if update_button:
+                update_student(selected_student, student_name, gender, age, location, household_income, sports, academic_clubs)
+                st.success(f"Student {student_name} updated successfully!")
+
+    elif choice == "Add Exam Scores":
+        st.subheader("Add Exam Scores for a Student")
+        students = fetch_students()
+        student_ids = [s[0] for s in students]
+        selected_student = st.selectbox("Select a student", student_ids)
+
+        if selected_student:
+            subject = st.text_input("Subject")
+            score = st.number_input("Score", min_value=0.0, max_value=100.0)
+            submit_score_button = st.button("Add Exam Score")
+
+            if submit_score_button:
+                add_exam_score(selected_student, subject, score)
+                avg = calculate_student_average(selected_student)
+                st.success(f"Exam score added successfully! New overall average: {avg:.2f}")
+
+    elif choice == "View Students":
+        st.subheader("View All Students")
+        search_query = st.text_input("Search by Name")
+        display_students(search_query)
+
+# Main App
 def main():
-    st.sidebar.title("Student Management App")
-    menu = ["Register School", "Login"]
-    choice = st.sidebar.selectbox("Select a page", menu)
-
-    if choice == "Register School":
-        st.title("Register a New School")
-
-        # Input fields for school registration
-        with st.form(key="school_form"):
-            school_name = st.text_input("School Name")
-            password = st.text_input("Password", type='password')
-            access_to_internet = st.selectbox("Access to Internet in School", ['Yes', 'No'])
-            teacher_student_ratio = st.number_input("Teacher to Student Ratio", min_value=1)
-            public_private = st.selectbox("Public or Private", ['Public', 'Private'])
-            submit = st.form_submit_button("Register School")
-
-        if submit:
-            if school_exists(school_name):
-                st.error("School name already exists. Please choose another.")
-            else:
-                register_school(school_name, password, access_to_internet, teacher_student_ratio, public_private)
-                st.success(f"School {school_name} registered successfully.")
-
-    elif choice == "Login":
-        st.title("School Login")
-
-        # Input fields for school login
-        with st.form(key="login_form"):
-            school_name = st.text_input("School Name")
-            password = st.text_input("Password", type='password')
-            login = st.form_submit_button("Login")
-
-        if login:
-            if validate_login(school_name, password):
-                st.success("Login successful!")
-                st.session_state['logged_in'] = True
-                st.session_state['school_name'] = school_name
-                dashboard()
-            else:
-                st.error("Invalid school name or password.")
-
-# Dashboard after successful login
-def dashboard():
-    st.title(f"Welcome to the Dashboard, {st.session_state['school_name']}")
-    menu = ["Home", "Register Student", "Upload Exam Scores", "Search Student", "Predict End-of-Term Average"]
-    choice = st.selectbox("Select a function", menu)
-
-    if choice == "Home":
-        st.write("Use the sidebar to navigate through the app.")
-
-    elif choice == "Register Student":
-        add_student_form()
-
-    elif choice == "Upload Exam Scores":
-        st.title("Upload Exam Scores")
-
-        # Placeholder for uploading exam scores
-        uploaded_file = st.file_uploader("Choose an exam score file (CSV)")
-        if uploaded_file is not None:
-            scores_df = pd.read_csv(uploaded_file)
-            st.dataframe(scores_df)  # Display uploaded data
-            st.success("Exam scores uploaded successfully!")
-
-    elif choice == "Search Student":
-        st.title("Search for a Student")
-        
-        # Search functionality (for now, simple search by name)
-        search_name = st.text_input("Enter student's name to search:")
-        students_data = fetch_students()  # Fetch students from the database
-        if search_name:
-            filtered_students = [s for s in students_data if search_name.lower() in s[1].lower()]  # Assuming name is at index 1
-            if filtered_students:
-                st.write(f"Found {len(filtered_students)} student(s):")
-                st.write(pd.DataFrame(filtered_students, columns=["ID", "Name", "Gender", "Age", "Household Income", "Sports", "Academic Clubs"]))
-            else:
-                st.error("No student found with that name.")
-
-    elif choice == "Predict End-of-Term Average":
-        st.title("Predict End-of-Term Average")
-
-        # Input form to enter the student's current average and other relevant features
-        with st.form(key="prediction_form"):
-            current_average = st.number_input("Enter the student's current average:", min_value=0.0, max_value=100.0)
-            # Include other features as necessary, e.g., gender, age, etc.
-            age = st.number_input("Age", min_value=1, max_value=100)
-            gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-            household_income = st.selectbox("Household Income", ["Low", "Average", "High"])
-            predict_button = st.form_submit_button("Predict")
-
-        if predict_button:
-            # Prepare the input features for prediction
-            features = pd.DataFrame({
-                'Current Average': [current_average],
-                'Age': [age],
-                'Gender': [gender],
-                'Household Income': [household_income]
-            })
-            prediction = predict_end_of_term_average(features)
-            st.success(f"The predicted end-of-term average is: {prediction:.2f}")
-
-            # Optionally, save the prediction to the student's record if they are registered
-            if st.checkbox("Save prediction to student's record"):
-                matching_students = [s for s in fetch_students() if s[8] == current_average]  # Assuming average is at index 8
-                if matching_students:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute('''UPDATE Students SET average = ? WHERE student_id = ?''', (prediction, matching_students[0][0]))  # Update the first match
-                    conn.commit()
-                    conn.close()
-                    st.success("Prediction saved successfully!")
-                else:
-                    st.error("No matching student found.")
+    create_database()  # Ensure tables are created
+    dashboard()
 
 if __name__ == "__main__":
     main()
