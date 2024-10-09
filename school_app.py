@@ -8,6 +8,8 @@ def get_db_connection():
     conn = sqlite3.connect('school_data.db')
     return conn
 
+
+
 # Create the database and tables if they don't exist
 def create_database():
     conn = get_db_connection()
@@ -46,6 +48,14 @@ def fetch_students():
     conn.close()
     return students
 
+# Function to search for students by name
+def search_students_by_name(name):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM Students WHERE student_name LIKE ?', ('%' + name + '%',))
+    students = cursor.fetchall()
+    conn.close()
+    return students
 # Function to fetch exam scores for a student by student ID
 def fetch_exam_scores_by_student_id(student_id):
     conn = get_db_connection()
@@ -62,6 +72,18 @@ def update_exam_score(exam_id, subject, score):
     cursor.execute('''
         UPDATE ExamScores SET subject = ?, score = ? WHERE exam_id = ?
     ''', (subject, score, exam_id))
+    conn.commit()
+    conn.close()
+
+
+# Function to update student details
+def update_student(student_id, student_name, gender, age, location, household_income, sports, academic_clubs):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE Students SET student_name = ?, gender = ?, age = ?, location = ?, household_income = ?, sports = ?, academic_clubs = ?
+        WHERE student_id = ?
+    ''', (student_name, gender, age, location, household_income, sports, academic_clubs, student_id))
     conn.commit()
     conn.close()
 
@@ -94,6 +116,8 @@ def display_students(search_query=''):
     if search_query:
         students = [s for s in students if search_query.lower() in s[1].lower()]
     df = pd.DataFrame(students, columns=["Student ID", "Name", "Gender", "Age", "Location", "Household Income", "Sports", "Academic Clubs", "Average"])
+    df = df[["Student ID", "Name", "Gender", "Age", "Location", 
+             "Household Income", "Sports", "Academic Clubs", "Average"]]
     st.dataframe(df)
 
 # Dashboard style
