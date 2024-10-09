@@ -1,12 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-import joblib
-import uuid
-
-# Load the pre-trained model and column transformer
-column_transformer = joblib.load('column_transformer.pkl')
-model = joblib.load('model.pkl')
+import random
 
 # Database connection
 def get_db_connection():
@@ -51,6 +46,15 @@ def fetch_students():
     conn.close()
     return students
 
+# Function to search for students by name
+def search_students_by_name(name):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM Students WHERE student_name LIKE ?', ('%' + name + '%',))
+    students = cursor.fetchall()
+    conn.close()
+    return students
+
 # Function to update student details
 def update_student(student_id, student_name, gender, age, location, household_income, sports, academic_clubs):
     conn = get_db_connection()
@@ -64,7 +68,7 @@ def update_student(student_id, student_name, gender, age, location, household_in
 
 # Function to add exam scores for a student
 def add_exam_score(student_id, subject, score):
-    exam_id = str(uuid.uuid4())  # Generate a unique exam ID
+    exam_id = str(random.randint(100000, 999999))  # Generate a random 6-digit exam ID
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -87,7 +91,7 @@ def calculate_student_average(student_id):
 
 # Function to add a new student
 def add_student(student_name, gender, age, location, household_income, sports, academic_clubs):
-    student_id = str(uuid.uuid4())  # Generate a unique student ID
+    student_id = str(random.randint(100000, 999999))  # Generate a random 6-digit student ID
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
@@ -132,24 +136,26 @@ def dashboard():
 
     elif choice == "Update Student":
         st.subheader("Update Student Information")
-        students = fetch_students()
-        student_ids = [s[0] for s in students]
-        selected_student = st.selectbox("Select a student to update", student_ids)
+        search_name = st.text_input("Enter student's name to search:")
+        if search_name:
+            matching_students = search_students_by_name(search_name)
+            if matching_students:
+                student_data = matching_students[0]  # For simplicity, take the first match
+                st.write(f"Updating details for: {student_data[1]}")
+                student_name = st.text_input("Student Name", value=student_data[1])
+                gender = st.selectbox("Gender", ['Male', 'Female'], index=0 if student_data[2] == 'Male' else 1)
+                age = st.number_input("Age", min_value=10, max_value=100, value=student_data[3])
+                location = st.selectbox("Location", ['Rural', 'Urban'], index=0 if student_data[4] == 'Rural' else 1)
+                household_income = st.text_input("Household Income", value=student_data[5])
+                sports = st.selectbox("Sports", ['Yes', 'No'], index=0 if student_data[6] == 'Yes' else 1)
+                academic_clubs = st.selectbox("Academic Clubs", ['Yes', 'No'], index=0 if student_data[7] == 'Yes' else 1)
+                update_button = st.button("Update Student")
 
-        if selected_student:
-            student_data = next(s for s in students if s[0] == selected_student)
-            student_name = st.text_input("Student Name", value=student_data[1])
-            gender = st.selectbox("Gender", ['Male', 'Female'], index=0 if student_data[2] == 'Male' else 1)
-            age = st.number_input("Age", min_value=10, max_value=100, value=student_data[3])
-            location = st.selectbox("Location", ['Rural', 'Urban'], index=0 if student_data[4] == 'Rural' else 1)
-            household_income = st.text_input("Household Income", value=student_data[5])
-            sports = st.selectbox("Sports", ['Yes', 'No'], index=0 if student_data[6] == 'Yes' else 1)
-            academic_clubs = st.selectbox("Academic Clubs", ['Yes', 'No'], index=0 if student_data[7] == 'Yes' else 1)
-            update_button = st.button("Update Student")
-
-            if update_button:
-                update_student(selected_student, student_name, gender, age, location, household_income, sports, academic_clubs)
-                st.success(f"Student {student_name} updated successfully!")
+                if update_button:
+                    update_student(student_data[0], student_name, gender, age, location, household_income, sports, academic_clubs)
+                    st.success(f"Student {student_name} updated successfully!")
+            else:
+                st.error("No student found with that name.")
 
     elif choice == "Add Exam Scores":
         st.subheader("Add Exam Scores for a Student")
