@@ -30,7 +30,7 @@ def search_students_by_name(name):
 def fetch_exam_scores_by_student_id(student_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM ExamScores WHERE student_id = ?', (student_id,))
+    cursor.execute('SELECT * FROM Scores WHERE student_id = ?', (student_id,))
     exam_scores = cursor.fetchall()
     conn.close()
     return exam_scores
@@ -129,6 +129,7 @@ def dashboard():
             if matching_students:
                 student_data = matching_students[0]  # For simplicity, take the first match
                 st.write(f"Updating details for: {student_data[1]}")
+                st.write(f"Student ID: {student_data[0]}")
                 student_name = st.text_input("Student Name", value=student_data[1])
                 gender = st.selectbox("Gender", ['Male', 'Female'], index=0 if student_data[2] == 'Male' else 1)
                 age = st.number_input("Age", min_value=10, max_value=100, value=student_data[3])
