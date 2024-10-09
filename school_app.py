@@ -17,6 +17,37 @@ def fetch_students():
     conn.close()
     return students
 
+def add_student(student_name, gender, age, location, household_income, sports, academic_clubs):
+    student_id = str(random.randint(100000, 999999))  # Generate a random 6-digit student ID
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
+                   (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
+    conn.commit()
+    conn.close()
+    return student_id
+# Function to search for students by name
+def search_students_by_name(name):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM Students WHERE student_name LIKE ?', ('%' + name + '%',))
+    students = cursor.fetchall()
+    conn.close()
+    return students
+
+# Function to update student details
+def update_student(student_id, student_name, gender, age, location, household_income, sports, academic_clubs):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE Students SET student_name = ?, gender = ?, age = ?, location = ?, household_income = ?, sports = ?, academic_clubs = ?
+        WHERE student_id = ?
+    ''', (student_name, gender, age, location, household_income, sports, academic_clubs, student_id))
+    conn.commit()
+    conn.close()
+
+
 # Fetch exam scores for a particular student
 def fetch_exam_scores(student_id):
     conn = get_db_connection()
@@ -88,6 +119,43 @@ def dashboard():
     if choice == "Home":
         st.title("Welcome to the Student Management Dashboard")
         st.write("Use the sidebar to manage students, add exam scores, or update student information.")
+    elif choice == "Register Student":
+        st.subheader("Register a New Student")
+        student_name = st.text_input("Student Name")
+        gender = st.selectbox("Gender", ['Male', 'Female'])
+        age = st.number_input("Age", min_value=10, max_value=100)
+        location = st.selectbox("Location", ['Rural', 'Urban'])
+        household_income = st.text_input("Household Income")
+        sports = st.selectbox("Sports", ['Yes', 'No'])
+        academic_clubs = st.selectbox("Academic Clubs", ['Yes', 'No'])
+        submit_button = st.button("Add Student")
+
+        if submit_button:
+            student_id = add_student(student_name, gender, age, location, household_income, sports, academic_clubs)
+            st.success(f"Student added successfully! ID: {student_id}")
+
+    elif choice == "Update Student":
+        st.subheader("Update Student Information")
+        search_name = st.text_input("Enter student's name to search:")
+        if search_name:
+            matching_students = search_students_by_name(search_name)
+            if matching_students:
+                student_data = matching_students[0]  # For simplicity, take the first match
+                st.write(f"Updating details for: {student_data[1]}")
+                student_name = st.text_input("Student Name", value=student_data[1])
+                gender = st.selectbox("Gender", ['Male', 'Female'], index=0 if student_data[2] == 'Male' else 1)
+                age = st.number_input("Age", min_value=10, max_value=100, value=student_data[3])
+                location = st.selectbox("Location", ['Rural', 'Urban'], index=0 if student_data[4] == 'Rural' else 1)
+                household_income = st.text_input("Household Income", value=student_data[5])
+                sports = st.selectbox("Sports", ['Yes', 'No'], index=0 if student_data[6] == 'Yes' else 1)
+                academic_clubs = st.selectbox("Academic Clubs", ['Yes', 'No'], index=0 if student_data[7] == 'Yes' else 1)
+                update_button = st.button("Update Student")
+
+                if update_button:
+                    update_student(student_data[0], student_name, gender, age, location, household_income, sports, academic_clubs)
+                    st.success(f"Student {student_name} updated successfully!")
+            else:
+                st.error("No student found with that name.")
 
     elif choice == "Add Exam Scores":
         st.subheader("Add or Edit Exam Scores for a Student")
