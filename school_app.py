@@ -8,7 +8,36 @@ def get_db_connection():
     conn = sqlite3.connect('school_data.db')
     return conn
 
-# Fetch all students
+# Create the database and tables if they don't exist
+def create_database():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Students (
+            student_id TEXT PRIMARY KEY,
+            student_name TEXT NOT NULL,
+            gender TEXT NOT NULL,
+            age INTEGER NOT NULL,
+            location TEXT NOT NULL,
+            household_income TEXT NOT NULL,
+            sports TEXT NOT NULL,
+            academic_clubs TEXT NOT NULL,
+            average REAL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ExamScores (
+            exam_id TEXT PRIMARY KEY,
+            student_id TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            score REAL NOT NULL,
+            FOREIGN KEY(student_id) REFERENCES Students(student_id)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Function to fetch all students
 def fetch_students():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -17,45 +46,24 @@ def fetch_students():
     conn.close()
     return students
 
-def add_student(student_name, gender, age, location, household_income, sports, academic_clubs):
-    student_id = str(random.randint(100000, 999999))  # Generate a random 6-digit student ID
+# Function to fetch exam scores for a student by student ID
+def fetch_exam_scores_by_student_id(student_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
-                   (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
-    conn.commit()
+    cursor.execute('SELECT * FROM ExamScores WHERE student_id = ?', (student_id,))
+    exam_scores = cursor.fetchall()
     conn.close()
-    return student_id
-# Function to search for students by name
-def search_students_by_name(name):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM Students WHERE student_name LIKE ?', ('%' + name + '%',))
-    students = cursor.fetchall()
-    conn.close()
-    return students
+    return exam_scores
 
-# Function to update student details
-def update_student(student_id, student_name, gender, age, location, household_income, sports, academic_clubs):
+# Function to update an exam score
+def update_exam_score(exam_id, subject, score):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        UPDATE Students SET student_name = ?, gender = ?, age = ?, location = ?, household_income = ?, sports = ?, academic_clubs = ?
-        WHERE student_id = ?
-    ''', (student_name, gender, age, location, household_income, sports, academic_clubs, student_id))
+        UPDATE ExamScores SET subject = ?, score = ? WHERE exam_id = ?
+    ''', (subject, score, exam_id))
     conn.commit()
     conn.close()
-
-
-# Fetch exam scores for a particular student
-def fetch_exam_scores(student_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT exam_id, subject, score FROM ExamScores WHERE student_id = ?', (student_id,))
-    scores = cursor.fetchall()
-    conn.close()
-    return scores
 
 # Function to add exam scores for a student
 def add_exam_score(student_id, subject, score):
@@ -66,14 +74,6 @@ def add_exam_score(student_id, subject, score):
         INSERT INTO ExamScores (exam_id, student_id, subject, score)
         VALUES (?, ?, ?, ?)
     ''', (exam_id, student_id, subject, score))
-    conn.commit()
-    conn.close()
-
-# Update existing exam score by exam_id
-def update_exam_score(exam_id, new_score):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('UPDATE ExamScores SET score = ? WHERE exam_id = ?', (new_score, exam_id))
     conn.commit()
     conn.close()
 
@@ -88,29 +88,15 @@ def calculate_student_average(student_id):
     conn.close()
     return avg
 
-# Display student exam scores and allow editing
-def display_and_edit_scores(student_id):
-    # Fetch the exam scores for the selected student
-    exam_scores = fetch_exam_scores(student_id)
-    if not exam_scores:
-        st.write("No exam scores found for this student.")
-        return
-    
-    # Create a DataFrame for easier editing
-    df = pd.DataFrame(exam_scores, columns=["Exam ID", "Subject", "Score"])
+# Function to display all students in a table with search capability
+def display_students(search_query=''):
+    students = fetch_students()
+    if search_query:
+        students = [s for s in students if search_query.lower() in s[1].lower()]
+    df = pd.DataFrame(students, columns=["Student ID", "Name", "Gender", "Age", "Location", "Household Income", "Sports", "Academic Clubs", "Average"])
+    st.dataframe(df)
 
-    # Display the editable table using Streamlit
-    st.write("Existing exam scores for this student:")
-    edited_df = st.experimental_data_editor(df, num_rows="dynamic")  # Allow dynamic number of rows
-
-    # Check if any changes have been made
-    if not df.equals(edited_df):
-        # Update the edited scores in the database
-        for index, row in edited_df.iterrows():
-            update_exam_score(row["Exam ID"], row["Score"])
-        st.success("Exam scores updated successfully!")
-
-# Dashboard style with Add Exam Scores functionality
+# Dashboard style
 def dashboard():
     st.sidebar.title("Student Management Dashboard")
     menu = ["Home", "Register Student", "Update Student", "Add Exam Scores", "View Students"]
@@ -119,6 +105,7 @@ def dashboard():
     if choice == "Home":
         st.title("Welcome to the Student Management Dashboard")
         st.write("Use the sidebar to manage students, add exam scores, or update student information.")
+
     elif choice == "Register Student":
         st.subheader("Register a New Student")
         student_name = st.text_input("Student Name")
@@ -131,7 +118,14 @@ def dashboard():
         submit_button = st.button("Add Student")
 
         if submit_button:
-            student_id = add_student(student_name, gender, age, location, household_income, sports, academic_clubs)
+            student_id = str(random.randint(100000, 999999))  # Generate a random 6-digit student ID
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''INSERT INTO Students (student_id, student_name, gender, age, location, household_income, sports, academic_clubs) 
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
+                           (student_id, student_name, gender, age, location, household_income, sports, academic_clubs))
+            conn.commit()
+            conn.close()
             st.success(f"Student added successfully! ID: {student_id}")
 
     elif choice == "Update Student":
@@ -158,41 +152,41 @@ def dashboard():
                 st.error("No student found with that name.")
 
     elif choice == "Add Exam Scores":
-        st.subheader("Add or Edit Exam Scores for a Student")
-        
-        # Search for student by ID
-        student_id = st.text_input("Enter Student ID to search:")
+        st.subheader("Add Exam Scores for a Student")
+        student_id = st.text_input("Enter Student ID:")
         
         if student_id:
-            students = fetch_students()
-            student_ids = [s[0] for s in students]
-            if student_id in student_ids:
-                st.write(f"Selected Student ID: {student_id}")
-                
-                # Display and edit existing exam scores
-                display_and_edit_scores(student_id)
-                
-                # Add new exam score
-                st.subheader("Add a New Exam Score")
-                subject = st.text_input("Subject")
-                score = st.number_input("Score", min_value=0.0, max_value=100.0)
-                submit_score_button = st.button("Add Exam Score")
-                
-                if submit_score_button:
-                    add_exam_score(student_id, subject, score)
-                    avg = calculate_student_average(student_id)
-                    st.success(f"Exam score added successfully! New overall average: {avg:.2f}")
+            student_scores = fetch_exam_scores_by_student_id(student_id)
+            if student_scores:
+                st.write("Existing Exam Scores:")
+                for exam in student_scores:
+                    exam_id, student_id, subject, score = exam
+                    st.text_input(f"Subject for Exam ID {exam_id}", value=subject, key=f"subject_{exam_id}")
+                    new_score = st.number_input(f"Score for {subject}", min_value=0.0, max_value=100.0, value=score, key=f"score_{exam_id}")
+                    if st.button(f"Update Score for Exam ID {exam_id}"):
+                        update_exam_score(exam_id, subject, new_score)
+                        st.success(f"Score updated for {subject}")
+                        avg = calculate_student_average(student_id)
+                        st.info(f"New Overall Average: {avg:.2f}")
             else:
-                st.error("Student ID not found.")
+                st.write("No exam scores found for this student.")
+            
+            st.write("Add a New Exam Score:")
+            new_subject = st.text_input("New Subject")
+            new_score = st.number_input("New Score", min_value=0.0, max_value=100.0)
+            if st.button("Add New Exam Score"):
+                add_exam_score(student_id, new_subject, new_score)
+                avg = calculate_student_average(student_id)
+                st.success(f"Exam score added successfully! New overall average: {avg:.2f}")
 
     elif choice == "View Students":
         st.subheader("View All Students")
-        students = fetch_students()
-        df = pd.DataFrame(students, columns=["Student ID", "Name", "Gender", "Age", "Location", "Household Income", "Sports", "Academic Clubs", "Average"])
-        st.dataframe(df)
+        search_query = st.text_input("Search by Name")
+        display_students(search_query)
 
 # Main App
 def main():
+    create_database()  # Ensure tables are created
     dashboard()
 
 if __name__ == "__main__":
