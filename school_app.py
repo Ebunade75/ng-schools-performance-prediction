@@ -20,7 +20,7 @@ def predict_student_average(student_data):
         'Location': student_data.get('location', 'Urban'),
         'Academic_Clubs': student_data.get('academic_clubs', 'No'),
         'Sports_Participation': student_data.get('sports', 'No'), 
-        'Household_Income': student_data.get('household_income', 0)  
+        'Household_Income': student_data.get('High')  
     }
     
     # Update default_data with actual provided student_data
