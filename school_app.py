@@ -46,7 +46,7 @@ def update_exam_score(exam_id, subject, score):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        UPDATE ExamScores SET subject = ?, score = ? WHERE exam_id = ?
+        UPDATE Scores SET subject = ?, score = ? WHERE exam_id = ?
     ''', (subject, score, exam_id))
     conn.commit()
     conn.close()
