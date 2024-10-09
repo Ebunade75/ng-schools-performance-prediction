@@ -9,36 +9,6 @@ def get_db_connection():
     return conn
 
 
-
-# Create the database and tables if they don't exist
-def create_database():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Students (
-            student_id TEXT PRIMARY KEY,
-            student_name TEXT NOT NULL,
-            gender TEXT NOT NULL,
-            age INTEGER NOT NULL,
-            location TEXT NOT NULL,
-            household_income TEXT NOT NULL,
-            sports TEXT NOT NULL,
-            academic_clubs TEXT NOT NULL,
-            average REAL
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ExamScores (
-            exam_id TEXT PRIMARY KEY,
-            student_id TEXT NOT NULL,
-            subject TEXT NOT NULL,
-            score REAL NOT NULL,
-            FOREIGN KEY(student_id) REFERENCES Students(student_id)
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
 # Function to fetch all students
 def fetch_students():
     conn = get_db_connection()
@@ -115,9 +85,8 @@ def display_students(search_query=''):
     students = fetch_students()
     if search_query:
         students = [s for s in students if search_query.lower() in s[1].lower()]
-    df = pd.DataFrame(students, columns=["Student ID", "Name", "Gender", "Age", "Location", "Household Income", "Sports", "Academic Clubs", "Average"])
-    df = df[["Student ID", "Name", "Gender", "Age", "Location", 
-             "Household Income", "Sports", "Academic Clubs", "Average"]]
+    df = pd.DataFrame(students, columns=["Student ID", "Name", "Gender", "Age", "Location", "Household Income", "Sports", "Academic Clubs", "Average", "Date Created", "Last Updated"])
+
     st.dataframe(df)
 
 # Dashboard style
@@ -210,7 +179,6 @@ def dashboard():
 
 # Main App
 def main():
-    create_database()  # Ensure tables are created
     dashboard()
 
 if __name__ == "__main__":
