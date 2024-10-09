@@ -12,6 +12,7 @@ transformer = joblib.load('column_transformer.pkl')  # Load your column transfor
 def predict_student_average(student_data):
     # Define the expected columns with their default values if needed
     default_data = {
+        'Student_ID': None,
         'Public_vs_Private': 'Private',
         'Access_to_Internet': 'Yes',
         'Teacher_to_Student_Ratio': 'Good',
