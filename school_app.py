@@ -10,10 +10,30 @@ transformer = joblib.load('column_transformer.pkl')  # Load your column transfor
 
 # Predict student average using the model
 def predict_student_average(student_data):
-    data_to_predict = pd.DataFrame([student_data])
+    # Define the expected columns with their default values if needed
+    default_data = {
+        'Student_ID': None,
+        'Public_vs_Private': 'Private',
+        'Access_to_Internet': 'Yes',
+        'Location': student_data.get('location', 'Urban'),
+        'Sports_Participation': student_data.get('sports', 'No'), 
+        'Household_Income': student_data.get('household_income', 0)  
+    }
+    
+    # Update default_data with actual provided student_data
+    default_data.update(student_data)
+
+    # Convert to DataFrame to match model input
+    data_to_predict = pd.DataFrame([default_data])
+
+    # Transform the data
     transformed_data = transformer.transform(data_to_predict)
+    
+    # Predict the average
     predicted_average = model.predict(transformed_data)
+    
     return predicted_average[0]
+
 
 # Database connection
 def get_db_connection():
